@@ -11,6 +11,8 @@ const scale = ref(2)
 const generating = ref(false)
 const progress = ref(0)
 const dragging = ref(false)
+const resultUrl = ref(null)
+const resultFileName = ref('')
 
 const selectedCount = computed(() => pages.value.filter((p) => p.selected).length)
 const hasSelection = computed(() => selectedCount.value > 0)
@@ -44,6 +46,11 @@ function reset() {
   pages.value = []
   fileName.value = ''
   progress.value = 0
+  if (resultUrl.value) {
+    URL.revokeObjectURL(resultUrl.value)
+    resultUrl.value = null
+  }
+  resultFileName.value = ''
 }
 
 function onFileInput(e) {
@@ -73,6 +80,14 @@ function invertSelection() {
   pages.value.forEach((p) => (p.selected = !p.selected))
 }
 
+function downloadResult() {
+  if (!resultUrl.value) return
+  const a = document.createElement('a')
+  a.href = resultUrl.value
+  a.download = resultFileName.value
+  a.click()
+}
+
 async function generate() {
   if (!pdfDoc.value || !hasSelection.value) return
   generating.value = true
@@ -93,14 +108,11 @@ async function generate() {
       (p) => (progress.value = p)
     )
 
+    if (resultUrl.value) URL.revokeObjectURL(resultUrl.value)
     const ext = format.value === 'png' ? 'png' : 'jpg'
     const baseName = fileName.value.replace(/\.pdf$/i, '')
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${baseName}_拼接.${ext}`
-    a.click()
-    URL.revokeObjectURL(url)
+    resultFileName.value = `${baseName}_拼接.${ext}`
+    resultUrl.value = URL.createObjectURL(blob)
   } catch (err) {
     console.error(err)
     alert('生成失败: ' + err.message)
@@ -311,7 +323,7 @@ async function generate() {
                 </svg>
                 生成中 {{ Math.round(progress * 100) }}%
               </span>
-              <span v-else>生成长图并下载</span>
+              <span v-else>生成长图</span>
             </button>
           </div>
 
@@ -321,6 +333,25 @@ async function generate() {
               class="h-full bg-indigo-500 rounded-full transition-all duration-300"
               :style="{ width: Math.round(progress * 100) + '%' }"
             />
+          </div>
+        </div>
+
+        <!-- Result Preview -->
+        <div v-if="resultUrl" class="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold text-slate-700">生成结果</h2>
+            <div class="flex gap-2">
+              <button
+                @click="downloadResult"
+                class="text-xs px-4 py-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors cursor-pointer font-medium"
+              >
+                下载图片
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mb-3">手机用户可长按图片直接保存到相册</p>
+          <div class="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+            <img :src="resultUrl" :alt="resultFileName" class="w-full block" />
           </div>
         </div>
       </template>
